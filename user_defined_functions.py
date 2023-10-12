@@ -10,8 +10,10 @@ def compute_third_order_tensor(params,n):
 
     _, alpha, beta = params[0], params[1], params[2]
     Q1 = np.random.randn(n,n**2)
+    Q1 = Q1/np.linalg.norm(Q1)
     Q2 = np.random.randn(n,n**2)
-    L = Q1.copy()
+    Q2 = Q2/np.linalg.norm(Q2)
+    L = np.zeros_like(Q1)
     R = np.zeros((n**2,n**2))
     for k in range (n**2):
         x1, y1, _ = Q1[0,k], Q1[1,k], Q1[2,k] 
@@ -20,7 +22,7 @@ def compute_third_order_tensor(params,n):
         L[:,k] = np.asarray([-alpha*x1*z2-beta*x1*y2,-alpha*y1*z2+beta*x1*x2,alpha*(x1*x2+y1*y2)])
 
     H = (L@R.T@scipy.linalg.inv(R@R.T)).reshape((n,n,n))
-    H[np.abs(H) < 1e-12] = 0.0
+    H[np.abs(H) < 1e-13] = 0.0
     validate_third_order_tensor(params,H,n)
 
     return H

@@ -35,10 +35,39 @@ def reconstruct_gramian(freqs,X,t):
     
     return P
 
+# --------------------------------------------------------------------------
+# ----- Compute the Gramians using their time-domain definition ------------
+# --------------------------------------------------------------------------
+
+def evaluate_linearized_rhs(t,q,A,H,fQ,Tp): 
+    tt = np.mod(t,Tp)
+    return (A + np.einsum('ijk,j',H,fQ(tt)) + np.einsum('ijk,k',H,fQ(tt)))@q
+
+def compute_gramian_time_domain(tensors,tbflow,Q,t,taus):
+    
+    A, H, B = tensors[0], tensors[1], tensors[2]
+    dtau = taus[1] - taus[0]
+    X = np.zeros((A.shape[0],len(taus)*B.shape[-1]))
+    fQ = scipy.interpolate.interp1d(tbflow,Q,kind='linear',fill_value='extrapolate')
+    Tp = tbflow[-1] + tbflow[1] - tbflow[0]
+    
+    count = 0
+    for j in range (B.shape[-1]):
+        q0 = B[:,j]
+        
+        for i in range (len(taus)):
+            print("Impulse %d/%d"%(i+1,len(taus)))
+            sol = scipy.integrate.solve_ivp(evaluate_linearized_rhs,[taus[i],t],\
+                                            q0,'RK45',t_eval=[t],args=(A,H,fQ,Tp)) 
+            X[:,count] = sol.y[:,-1]
+            count += 1
+    
+    
+    return np.sqrt(dtau)*X
 
 
 # --------------------------------------------------------------------------
-# ----- Execute Part I of Alg. 1 in Padovan & Rowley, JCP, 2023 ------------
+# ----- Compute the Gramians using the frequential factors -----------------
 # --------------------------------------------------------------------------
 
 
@@ -55,9 +84,51 @@ def compute_matrix_X(gammas,freqs,A,M):
         i0 = i*m
         i1 = (i+1)*m
         
-        X[:,i0:i1] = scipy.linalg.solve(1j*gammas[i]*Id - A,M[:,m*(nf//2)]).reshape(-1,m)
+        X[:,i0:i1] = scipy.linalg.solve(1j*gammas[i]*Id - A,M[:,m*(nf//2):m*(nf//2+1)]).reshape(-1,m)
         
     return X
+
+# This function implements Algorithm 1 in the JCP paper
+def compute_matrix_X_efficient(gammas,m,freqs,A,M):
+    
+    
+    nf = len(freqs)
+    n = A.shape[0]//nf
+    p = M.shape[-1]//nf
+    ncols_X = ((len(gammas)-2)*(2*m + 1) + 2*(m+1))*p
+    
+    omega = freqs[nf//2+1]
+    Id = np.diag(np.ones(A.shape[0]))
+    X = np.zeros((A.shape[0],ncols_X),dtype=np.complex128)
+    
+    gvec = np.zeros(ncols_X//p)
+    count = 0
+    for i in range (len(gammas)):
+        
+        # Compute factorization (or preconditioner)
+        lu, piv = scipy.linalg.lu_factor(1j*gammas[i]*Id - A)
+        
+        if i == 0 or i == len(gammas)-1:    Range = np.arange(0,m+1,1)
+        else:                               Range = np.arange(-m,m+1,1) 
+        
+        for j in range (len(Range)):
+            idx0 = count*p
+            idx1 = (count+1)*p
+            
+            Mj = M[:,p*(nf//2):p*(nf//2+1)].copy()
+            Xj = np.zeros_like(Mj,dtype=np.complex128)
+            for k in range (p): 
+                Mjk = Mj[:,k].reshape((n,nf),order='F')
+                Mj[:,k] = np.roll(Mjk,Range[j]).reshape(-1,order='F')
+                sol = scipy.linalg.lu_solve((lu,piv),Mj[:,k]).reshape((n,nf),order='F')
+                Xj[:,k] = np.roll(sol,-Range[j]).reshape(-1,order='F')
+                
+            X[:,idx0:idx1] = Xj
+            
+            gvec[count] = np.abs(gammas[i] + Range[j]*omega)
+            count += 1
+            
+    return X, np.sort(np.abs(gvec))
 
 
 def evaluate_gramian(gammas,freqs,X,t):
@@ -81,4 +152,17 @@ def evaluate_gramian(gammas,freqs,X,t):
     P = Z@Z.T
     
     return P
+
+
+
+
+
+
+
+
+
+
+
+
+
 
