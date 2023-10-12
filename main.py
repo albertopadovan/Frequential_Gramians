@@ -141,7 +141,7 @@ print("Execution time in the time domain = %1.03e,\t Error = %1.03e"%(t1 - t0,er
 m = 10
 gammas = np.linspace(0,omega/2,num=30)
 t0 = tlib.time()
-X, gs = bal.compute_matrix_X_efficient(gammas,m,freqs,T,B_)
+X, gs = bal.compute_matrix_X_alg1(gammas,m,freqs,T,B_)
 Pe = bal.evaluate_gramian(gs,freqs,X,np.mod(tf,Tw))
 t1 = tlib.time()
 

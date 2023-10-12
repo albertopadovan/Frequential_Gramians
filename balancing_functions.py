@@ -89,8 +89,7 @@ def compute_matrix_X(gammas,freqs,A,M):
     return X
 
 # This function implements Algorithm 1 in the JCP paper
-def compute_matrix_X_efficient(gammas,m,freqs,A,M):
-    
+def compute_matrix_X_alg1(gammas,m,freqs,A,M):
     
     nf = len(freqs)
     n = A.shape[0]//nf
